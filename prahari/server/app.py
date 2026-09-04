@@ -42,15 +42,20 @@ from .store import Store
 log = logging.getLogger("prahari.server")
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
-EVIDENCE_DIR = os.environ.get("PRAHARI_EVIDENCE", "evidence")
 DETECTOR = os.environ.get("PRAHARI_DETECTOR", "motion")
 FARM_CONTROL = os.environ.get("PRAHARI_FARM", "http://127.0.0.1:9099")
+RUNTIME_DIR = os.environ.get(
+    "PRAHARI_RUNTIME", "/tmp/prahari" if os.environ.get("VERCEL") else ".")
+os.makedirs(RUNTIME_DIR, exist_ok=True)
+EVIDENCE_DIR = os.environ.get(
+    "PRAHARI_EVIDENCE", os.path.join(RUNTIME_DIR, "evidence"))
 
 app = FastAPI(title="Prahari", version="0.1",
               description="AI video analytics for border surveillance on "
                           "existing CCTV infrastructure (SIH26187)")
 
-store = Store(os.environ.get("PRAHARI_DB", "prahari.db"))
+DB_PATH = os.environ.get("PRAHARI_DB", os.path.join(RUNTIME_DIR, "prahari.db"))
+store = Store(DB_PATH)
 northbound = Northbound()
 workers: Dict[str, CameraWorker] = {}
 engines: Dict[str, RuleEngine] = {}
@@ -62,7 +67,7 @@ _loop: Optional[asyncio.AbstractEventLoop] = None
 # is expensive to recompute. Persist it beside the database so a restart
 # does not blank the panel.
 DISCOVERY_CACHE = os.path.join(
-    os.path.dirname(os.environ.get("PRAHARI_DB", "prahari.db")) or ".",
+    os.path.dirname(DB_PATH) or ".",
     "discovery.json")
 
 
@@ -79,7 +84,7 @@ def _save_discovery(report: dict) -> None:
 # nobody noticed until morning, is the same class of failure as cameras
 # that do not auto-resume.
 CONSUMERS_FILE = os.path.join(
-    os.path.dirname(os.environ.get("PRAHARI_DB", "prahari.db")) or ".",
+    os.path.dirname(DB_PATH) or ".",
     "northbound.json")
 
 
@@ -147,7 +152,8 @@ def _publish(kind: str, payload: dict):
     asyncio.run_coroutine_threadsafe(hub.broadcast(kind, payload), _loop)
 
 
-STATE_DIR = os.environ.get("PRAHARI_STATE", "state")
+STATE_DIR = os.environ.get("PRAHARI_STATE", os.path.join(RUNTIME_DIR, "state"))
+os.makedirs(STATE_DIR, exist_ok=True)
 normality = NormalityStore(os.path.join(STATE_DIR, "normality.json"))
 autonomy = AutonomyEngine(AutonomyPolicy.from_env())
 alarms = AlarmDispatcher(
