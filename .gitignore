@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+prahari.db*
+discovery.json
+evidence/
+media/*.h264
+.*.pid
+c2.log
+farm.log
+server.log
+vendor/
+.venv/

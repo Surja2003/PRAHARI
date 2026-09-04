@@ -1,0 +1,176 @@
+# Prahari brand URL library
+#
+# The Camera Abstraction Layer walks this file as rung 6 of the discovery
+# ladder: when ONVIF is disabled (which it is, by default, on a great many
+# shipped DVRs) these templates are probed in parallel with RTSP DESCRIBE.
+#
+# Adding a vendor is a change to THIS FILE ONLY. Never a code change.
+#
+# Template variables:
+#   {ip} {port} {user} {pass} {ch}  1-based channel
+#   {main} {sub}                    substituted from stream_codes
+#
+# fingerprint.ports  ports whose presence raises this brand's prior
+# fingerprint.oui     IEEE MAC prefixes (offline lookup, no internet at a BOP)
+# fingerprint.server  substring match on the RTSP/HTTP `Server:` header
+
+version: 3
+
+brands:
+
+  hikvision:
+    label: Hikvision
+    aliases: [prama, hiwatch, "hikvision digital technology"]
+    auth: digest
+    realm: "IP Camera(C1234)"
+    server_header: "Hikvision-Webs"
+    stream_codes: {main: "01", sub: "02"}
+    templates:
+      - "rtsp://{user}:{pass}@{ip}:{port}/Streaming/Channels/{ch}{main}"
+      - "rtsp://{user}:{pass}@{ip}:{port}/Streaming/Channels/{ch}{sub}"
+      - "rtsp://{user}:{pass}@{ip}:{port}/h264/ch{ch}/main/av_stream"   # older firmware
+    fingerprint:
+      ports: [554, 80, 8000]
+      oui: ["44:19:b6", "c0:56:e3", "bc:ad:28", "4c:bd:8f"]
+      server: ["hikvision", "app-webs", "dvrdvs"]
+
+  dahua:
+    label: Dahua
+    aliases: [amcrest, lorex, "dahua technology"]
+    auth: digest
+    realm: "Login to 3ff4ba1c1c1f9f4b"
+    server_header: "Rtsp Server"
+    stream_codes: {main: "0", sub: "1"}
+    templates:
+      - "rtsp://{user}:{pass}@{ip}:{port}/cam/realmonitor?channel={ch}&subtype={main}"
+      - "rtsp://{user}:{pass}@{ip}:{port}/cam/realmonitor?channel={ch}&subtype={sub}"
+    fingerprint:
+      ports: [554, 80, 37777]
+      oui: ["3c:ef:8c", "e0:50:8b", "90:02:a9"]
+      server: ["rtsp server", "dahua", "webs"]
+
+  cpplus:
+    label: CP Plus
+    # CP Plus is a Dahua OEM. Identical dialect, different badge on the box.
+    # This is the brand actually installed across most Indian government sites.
+    aliases: ["cp plus", "cp-plus", "cpplus"]
+    auth: digest
+    realm: "Login to 3ff4ba1c1c1f9f4b"
+    server_header: "Rtsp Server"
+    stream_codes: {main: "0", sub: "1"}
+    templates:
+      - "rtsp://{user}:{pass}@{ip}:{port}/cam/realmonitor?channel={ch}&subtype={main}"
+      - "rtsp://{user}:{pass}@{ip}:{port}/cam/realmonitor?channel={ch}&subtype={sub}"
+    fingerprint:
+      ports: [554, 80, 37777]
+      oui: ["8c:e7:48", "38:af:29"]
+      server: ["rtsp server", "cp plus"]
+
+  uniview:
+    label: Uniview
+    aliases: [unv, "zhejiang uniview"]
+    auth: basic
+    realm: "uniview"
+    server_header: "UNV-RTSP/1.0"
+    stream_codes: {main: "0", sub: "1"}
+    templates:
+      - "rtsp://{user}:{pass}@{ip}:{port}/unicast/c{ch}/s{main}/live"
+      - "rtsp://{user}:{pass}@{ip}:{port}/unicast/c{ch}/s{sub}/live"
+      - "rtsp://{user}:{pass}@{ip}:{port}/media/video{ch}"
+    fingerprint:
+      ports: [554, 80, 8000]
+      oui: ["48:ea:63", "6c:f1:7e"]
+      server: ["unv", "uniview"]
+
+  hanwha:
+    label: Hanwha / Samsung
+    aliases: [samsung, wisenet, "hanwha techwin"]
+    auth: digest
+    realm: "iPolis"
+    server_header: "Hanwha"
+    stream_codes: {main: "0", sub: "2"}
+    templates:
+      # Channel numbering is 0-based on Hanwha recorders.
+      - "rtsp://{user}:{pass}@{ip}:{port}/LiveChannel/{ch0}/media.smp"
+      - "rtsp://{user}:{pass}@{ip}:{port}/profile{sub}/media.smp"
+    fingerprint:
+      ports: [554, 80, 4520]
+      oui: ["00:16:6c", "00:09:18"]
+      server: ["hanwha", "wisenet", "ipolis"]
+
+  axis:
+    label: Axis
+    aliases: ["axis communications"]
+    auth: digest
+    realm: "AXIS_ACCC8E"
+    server_header: "GStreamer RTSP server"
+    stream_codes: {main: "", sub: "?resolution=640x480"}
+    templates:
+      - "rtsp://{user}:{pass}@{ip}:{port}/axis-media/media.amp"
+      - "rtsp://{user}:{pass}@{ip}:{port}/axis-media/media.amp?camera={ch}"
+    fingerprint:
+      ports: [554, 80]
+      oui: ["00:40:8c", "ac:cc:8e", "b8:a4:4f"]
+      server: ["axis", "gstreamer rtsp"]
+
+  reolink:
+    label: Reolink
+    aliases: []
+    auth: basic
+    realm: "reolink"
+    server_header: "Rtsp Server"
+    stream_codes: {main: "main", sub: "sub"}
+    templates:
+      - "rtsp://{user}:{pass}@{ip}:{port}/h264Preview_{ch:02d}_{main}"
+      - "rtsp://{user}:{pass}@{ip}:{port}/h264Preview_{ch:02d}_{sub}"
+    fingerprint:
+      ports: [554, 80, 8000]
+      oui: ["ec:71:db"]
+      server: ["reolink"]
+
+  bosch:
+    label: Bosch
+    aliases: ["bosch security"]
+    auth: digest
+    realm: "VIP"
+    server_header: "Bosch VIP"
+    stream_codes: {main: "1", sub: "2"}
+    templates:
+      - "rtsp://{user}:{pass}@{ip}:{port}/?inst={main}"
+      - "rtsp://{user}:{pass}@{ip}:{port}/rtsp_tunnel?inst={main}"
+    fingerprint:
+      ports: [554, 80, 1756]
+      oui: ["00:07:5f", "00:1c:44"]
+      server: ["bosch", "vip"]
+
+  generic:
+    # Last resort. Wide net, low prior, probed only after every branded
+    # template has failed.
+    label: Generic ONVIF/RTSP
+    aliases: []
+    auth: basic
+    realm: "rtsp"
+    server_header: "RTSP Server"
+    stream_codes: {main: "0", sub: "1"}
+    templates:
+      - "rtsp://{user}:{pass}@{ip}:{port}/live"
+      - "rtsp://{user}:{pass}@{ip}:{port}/live/ch{ch}"
+      - "rtsp://{user}:{pass}@{ip}:{port}/stream{ch}"
+      - "rtsp://{user}:{pass}@{ip}:{port}/video{ch}"
+      - "rtsp://{user}:{pass}@{ip}:{port}/11"
+      - "rtsp://{user}:{pass}@{ip}:{port}/ch{ch}/0"
+      - "rtsp://{user}:{pass}@{ip}:{port}/onvif{ch}"
+    fingerprint:
+      ports: [554]
+      oui: []
+      server: []
+
+# Credentials tried, in order, when none are supplied. Field DVRs are
+# depressingly often left on defaults; a discovery tool that does not try
+# them is a discovery tool that finds nothing.
+default_credentials:
+  - {user: "admin", pass: "admin"}
+  - {user: "admin", pass: "12345"}
+  - {user: "admin", pass: "admin12345"}
+  - {user: "admin", pass: ""}
+  - {user: "root",  pass: "root"}

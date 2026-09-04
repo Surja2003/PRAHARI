@@ -1,0 +1,29 @@
+# Prahari — runtime dependencies
+#
+# The base set is deliberately small: everything below runs on a CPU-only
+# border outpost appliance with no accelerator and no internet.
+
+# control plane
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+python-multipart>=0.0.9
+
+# ingest + perception
+opencv-python-headless>=4.9
+numpy>=1.26
+PyYAML>=6.0
+
+# northbound (ONVIF Profile M MQTT binding)
+paho-mqtt>=2.0
+
+# --------------------------------------------------------------------------
+# Production perception — install separately, needs a GPU to be worth it.
+#
+#   pip install ultralytics
+#   yolo export model=yolo26s.pt format=engine half=True imgsz=1280
+#   PRAHARI_DETECTOR=yolo PRAHARI_WEIGHTS=yolo26s.engine
+#
+# Omitted from the base set on purpose: torch is ~2.5 GB and the pipeline
+# runs end to end without it on the motion backend.
+# --------------------------------------------------------------------------

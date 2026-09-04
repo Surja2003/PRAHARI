@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prahari — Border Surveillance Command</title>
+<style>
+/* No webfonts on purpose: a border outpost has no internet. */
+:root{
+  --ground:#0A100E; --panel:#131B19; --panel2:#18211F; --line:#26332F;
+  --ink:#E7EDEA; --ink2:#C0CCC8; --muted:#8D9C97;
+  --accent:#E0A343; --deep:#7CCBBB;
+  --ok:#5CBE8E; --warn:#DDA945; --crit:#E8776A;
+  --ok-bg:#12251C; --warn-bg:#261E0F; --crit-bg:#2A1614; --deep-bg:#162A27;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;}
+button{font:inherit;cursor:pointer;border-radius:4px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--ink);padding:6px 12px}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:#20170A;font-weight:600}
+button.primary:hover{filter:brightness(1.1);color:#20170A}
+select{font:inherit;background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+  border-radius:4px;padding:6px 8px}
+.mono{font-family:var(--mono);font-size:12px}
+.muted{color:var(--muted)}
+
+header{background:#0C1614;border-bottom:1px solid var(--line);padding:12px 18px;
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+header h1{margin:0;font-size:19px;letter-spacing:-.01em;font-weight:700}
+header h1 small{font-weight:400;font-size:11px;color:var(--deep);
+  font-family:var(--mono);letter-spacing:.1em;display:block;margin-top:1px}
+.spacer{flex:1}
+.stat{padding:0 12px;border-left:1px solid var(--line)}
+.stat b{display:block;font-size:16px;font-variant-numeric:tabular-nums}
+.stat span{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  font-family:var(--mono)}
+#conn{width:8px;height:8px;border-radius:50%;background:var(--crit);display:inline-block}
+#conn.up{background:var(--ok)}
+
+.wrap{display:grid;grid-template-columns:340px minmax(0,1fr) 360px;gap:14px;padding:14px;
+  align-items:start}
+@media(max-width:1400px){.wrap{grid-template-columns:320px minmax(0,1fr)}
+  .col-alerts{grid-column:1/-1}}
+@media(max-width:900px){.wrap{grid-template-columns:minmax(0,1fr)}}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;margin-bottom:14px;
+  overflow:hidden}
+.card>h2{margin:0;padding:10px 14px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);font-family:var(--mono);background:var(--panel2);
+  border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.card>h2 .n{margin-left:auto;color:var(--muted)}
+.card .body{padding:12px 14px}
+.card .body.tight{padding:0}
+/* Long lists scroll in their own track. Without this a busy night stretches
+   the document to several thousand pixels and buries every other panel. */
+.card .body.scroll{max-height:72vh;overflow-y:auto}
+.card .body.scroll::-webkit-scrollbar{width:8px}
+.card .body.scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+
+/* devices */
+.dev{border-bottom:1px solid var(--line);padding:10px 14px}
+.dev:last-child{border-bottom:0}
+.dev .row1{display:flex;align-items:baseline;gap:8px}
+.dev .brand{font-weight:600}
+.dev .ip{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto}
+.dev .meta{font-size:12px;color:var(--muted);margin-top:2px}
+.tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;padding:1px 6px;border-radius:3px;
+  text-transform:uppercase;white-space:nowrap}
+.tag.onvif{background:var(--ok-bg);color:var(--ok)}
+.tag.tmpl{background:var(--warn-bg);color:var(--warn)}
+.ladder{margin-top:8px;border-left:2px solid var(--line);padding-left:9px}
+.ladder div{font-size:11px;color:var(--muted);font-family:var(--mono);
+  display:flex;gap:6px;padding:1px 0}
+.ladder .hit b{color:var(--ok)} .ladder .miss b{color:var(--muted)}
+.ladder .d{color:var(--ink2);opacity:.7}
+
+/* grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.tile img{width:100%;display:block;background:#000;aspect-ratio:16/9;object-fit:contain}
+.tile .th{padding:8px 11px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--line);
+  background:var(--panel2)}
+.tile .th b{font-size:13px}
+.tile .tf{padding:8px 11px;display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.cap{font-family:var(--mono);font-size:9.5px;padding:2px 6px;border-radius:3px;border:1px solid var(--line);
+  color:var(--muted);cursor:help}
+.cap.on{background:var(--deep-bg);color:var(--deep);border-color:#22453f}
+.role{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  padding:2px 6px;border-radius:3px;background:var(--deep-bg);color:var(--deep)}
+.fps{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+
+/* alerts */
+.alert{border-bottom:1px solid var(--line);padding:10px 14px;display:flex;gap:10px}
+.alert:last-child{border-bottom:0}
+.alert .sv{width:3px;border-radius:2px;flex:none}
+.alert.critical .sv{background:var(--crit)} .alert.high .sv{background:var(--warn)}
+.alert.medium .sv{background:var(--accent)} .alert.low .sv{background:var(--deep)}
+.alert.info .sv{background:var(--muted)}
+.alert .m{font-size:13px;line-height:1.35}
+.alert .s{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:3px}
+.alert .acts{margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.alert .acts a{white-space:nowrap;text-decoration:none;color:var(--muted)}
+.alert .acts a:hover{color:var(--accent)}
+.alert button{padding:2px 8px;font-size:11px}
+.alert.done{opacity:.5}
+.alert img{width:88px;border-radius:3px;flex:none;align-self:flex-start;border:1px solid var(--line)}
+
+.linkbar{display:flex;gap:6px;flex-wrap:wrap}
+.linkbar button.sel{background:var(--accent);color:#20170A;border-color:var(--accent);font-weight:600}
+.kv{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;
+  border-bottom:1px dotted var(--line)}
+.kv:last-child{border-bottom:0}
+.kv b{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.empty{padding:22px 14px;color:var(--muted);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Prahari <small>SIH26187 · MHA / SSB</small></h1>
+  <div class="stat"><b id="s-dev">0</b><span>devices</span></div>
+  <div class="stat"><b id="s-cam">0</b><span>cameras</span></div>
+  <div class="stat"><b id="s-run">0</b><span>running</span></div>
+  <div class="stat"><b id="s-alert">0</b><span>alerts</span></div>
+  <div class="stat"><b id="s-sup">0</b><span>suppressed</span></div>
+  <div class="stat"><b id="s-load">0</b><span>need a person /hr</span></div>
+  <div class="spacer"></div>
+  <span class="mono muted"><span id="conn"></span> <span id="conn-t">connecting</span></span>
+  <button class="primary" id="btn-scan">Scan network</button>
+  <button id="btn-start">Connect all</button>
+</header>
+
+<div class="wrap">
+
+  <!-- ---------------- left ---------------- -->
+  <div>
+    <div class="card">
+      <h2>Discovered devices <span class="n" id="dev-n">0</span></h2>
+      <div class="body tight scroll" id="devices">
+        <div class="empty">Press <b>Scan network</b>.<br>
+          No RTSP URL will be typed by anyone.
+          <div class="mono muted" id="sim-mode" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Link condition</h2>
+      <div class="body">
+        <div class="linkbar" id="linkbar"></div>
+        <p class="muted" style="margin:10px 0 0;font-size:12px">
+          Degrade the backhaul live. Inference stays at the edge, events queue
+          on the far side, and nothing is lost when the link returns.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Autonomy <span class="n" id="auto-n"></span></h2>
+      <div class="body" id="autonomy">
+        <div class="muted" style="font-size:12px">Learning what normal
+          looks like on each camera.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Northbound (C2)</h2>
+      <div class="body" id="northbound">
+        <div class="muted" style="font-size:12px">No consumer registered.
+          Start the mock C2 and it appears here.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Pipeline metrics</h2>
+      <div class="body" id="metrics"><div class="muted">—</div></div>
+    </div>
+  </div>
+
+  <!-- ---------------- centre ---------------- -->
+  <div>
+    <div class="card">
+      <h2>Live <span class="n" id="grid-n">0</span></h2>
+      <div class="body">
+        <div class="grid" id="grid">
+          <div class="empty">Connect cameras to see live views.<br>
+            Capability badges show what each view can honestly support.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------------- right ---------------- -->
+  <div class="col-alerts">
+    <div class="card">
+      <h2>Alert feed
+        <button id="btn-filter" style="padding:2px 8px;font-size:10px;
+          margin-left:6px">needs a person</button>
+        <span class="n" id="alert-n">0</span></h2>
+      <div class="body tight scroll" id="alerts">
+        <div class="empty">No alerts yet.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = (p, o) => fetch(p, o).then(r => r.json());
+const state = { cameras: [], alerts: [], link: "fibre",
+                scanSpec: "127.0.0.0/24", simMode: "", onlyHuman: true };
+
+/* ------------------------------------------------ websocket */
+function connect() {
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onopen = () => { $("#conn").classList.add("up"); $("#conn-t").textContent = "live"; };
+  ws.onclose = () => {
+    $("#conn").classList.remove("up"); $("#conn-t").textContent = "reconnecting";
+    setTimeout(connect, 2000);
+  };
+  ws.onmessage = e => {
+    const { type, data } = JSON.parse(e.data);
+    if (type === "alert") { state.alerts.unshift(data); renderAlerts(); }
+    else if (type === "alert_update") refreshAlerts();
+    else if (type === "discovery") renderDevices(data.devices || [], data);
+  };
+}
+
+/* ------------------------------------------------ devices */
+function renderDevices(devices, report) {
+  $("#dev-n").textContent = devices.length;
+  $("#s-dev").textContent = devices.length;
+  $("#s-cam").textContent = devices.reduce((n, d) => n + (d.channels || []).length, 0);
+  if (!devices.length) {
+    // A scan that finds nothing must not look like a scan that never ran.
+    if (report && report.hosts_scanned) {
+      $("#devices").innerHTML = `<div class="empty">
+        <b>Scanned ${report.hosts_scanned} endpoint(s) in
+        ${report.elapsed_ms} ms — found nothing.</b><br><br>
+        The DVR farm is probably not running, or it is listening somewhere
+        this scan did not look.<br><br>
+        <span class="mono">python -m prahari.run demo</span><br>
+        starts the farm and scans the right targets for this OS.<br><br>
+        On Windows and macOS the simulator uses
+        <span class="mono">127.0.0.1:8554-8557</span>, not
+        <span class="mono">127.0.0.0/24</span>.</div>`;
+    }
+    return;
+  }
+  $("#devices").innerHTML = devices.map(d => `
+    <div class="dev">
+      <div class="row1">
+        <span class="brand">${esc(d.label || d.brand || "unknown")}</span>
+        <span class="tag ${d.identified_by === "onvif" ? "onvif" : "tmpl"}">
+          ${d.identified_by === "onvif" ? "ONVIF" : "template"}</span>
+        <span class="ip">${esc(d.ip)}</span>
+      </div>
+      <div class="meta">${esc(d.model || "—")} · ${(d.channels || []).length} ch ·
+        ports ${(d.open_ports || []).join(", ")}
+        ${d.templates_tried ? ` · ${d.templates_tried} templates probed` : ""}</div>
+      <div class="ladder">${(d.ladder || []).map(s => `
+        <div class="${s.outcome}"><b>${s.rung}</b>
+          <span>${esc(s.name)}</span>
+          <span class="d">${esc(s.detail || "")}</span></div>`).join("")}</div>
+    </div>`).join("");
+}
+
+/* ------------------------------------------------ live grid */
+const CAP_LABEL = {
+  human_detect: "human", human_track: "track", vehicle_detect: "vehicle",
+  virtual_fence: "fence", night_movement: "night", activity: "activity",
+  face_detect: "face", face_match: "face match", anpr: "ANPR"
+};
+
+function renderGrid() {
+  const running = state.cameras.filter(c => c.running);
+  $("#grid-n").textContent = running.length;
+  $("#s-run").textContent = running.length;
+  if (!running.length) return;
+  const grid = $("#grid");
+  running.forEach(c => {
+    let tile = document.getElementById("tile-" + c.camera_id);
+    if (!tile) {
+      if (grid.querySelector(".empty")) grid.innerHTML = "";
+      tile = document.createElement("div");
+      tile.className = "tile";
+      tile.id = "tile-" + c.camera_id;
+      tile.innerHTML = `<div class="th"><b>${esc(c.name)}</b>
+          <span class="role"></span><span class="fps"></span></div>
+        <img alt="${esc(c.name)}" data-cam="${c.camera_id}">
+        <div class="tf"></div>`;
+      grid.appendChild(tile);
+      startTile(tile.querySelector("img"), c.camera_id);
+    }
+    const st = c.status || {};
+    tile.querySelector(".role").textContent = st.role || "profiling";
+    tile.querySelector(".fps").textContent =
+      `${(st.fps || 0).toFixed(0)} fps${st.is_night ? " · NIGHT" : ""}`;
+    const caps = st.capabilities || {};
+    const o = st.optics || {};
+    tile.querySelector(".tf").innerHTML = Object.entries(CAP_LABEL).map(([k, label]) => {
+      const on = caps[k];
+      const why = on ? "supported by this view"
+        : reason(k, o);
+      return `<span class="cap ${on ? "on" : ""}" title="${esc(why)}">${label}</span>`;
+    }).join("");
+  });
+}
+
+function reason(cap, o) {
+  const p = o.median_person_px || 0;
+  if (cap === "anpr") return `plates ~${(o.plate_width_px||0).toFixed(0)} px here, OCR needs 100`;
+  if (cap === "face_detect") return `faces ~${(o.face_width_px||0).toFixed(0)} px wide, detection needs 16`;
+  if (cap === "face_match") return `eye spacing ~${(o.ipd_px||0).toFixed(1)} px, matching needs 40`;
+  if (cap === "activity") return `people ${p.toFixed(0)} px tall, pose needs 60`;
+  return `people ${p.toFixed(0)} px tall`;
+}
+
+/* ------------------------------------------------ tile video
+   Browsers allow only about six concurrent connections per origin on
+   HTTP/1.1. An MJPEG stream holds one open forever, so a nine-camera wall
+   leaves three tiles black permanently -- the cameras are fine, the
+   browser simply never opens the connection.
+
+   So each tile polls a short-lived snapshot instead: the connection is
+   released between frames and every tile updates. Requests are staggered
+   so they do not all land in the same instant, and polling stops when the
+   tab is hidden. (WebRTC via MediaMTX is the production path; this is the
+   dependency-free demo path.) */
+const TILE_FPS = 6;
+function startTile(img, camId) {
+  // Self-clocking: the next frame is requested only once the current one has
+  // actually decoded. Exactly one request per tile is ever in flight, so the
+  // grid degrades to a lower frame rate under load instead of piling up
+  // requests that cancel each other.
+  //
+  // Do NOT preload into a second Image and then copy the src across: the
+  // snapshot is sent no-store, so the assignment refetches, and that second
+  // request cancels the element's own in-flight load. The tile then never
+  // decodes anything and stays black forever while the network tab shows it
+  // happily fetching. That was the original nine-tiles-six-render bug.
+  let timer = null, watchdog = null;
+  const schedule = ms => { clearTimeout(timer); timer = setTimeout(load, ms); };
+  const load = () => {
+    if (!document.body.contains(img)) return;
+    if (document.hidden) { schedule(750); return; }
+    clearTimeout(watchdog);
+    watchdog = setTimeout(() => schedule(0), 5000);  // request vanished
+    img.src = `/api/cameras/${camId}/snapshot.jpg?t=${Date.now()}`;
+  };
+  img.onload = () => { clearTimeout(watchdog); schedule(1000 / TILE_FPS); };
+  img.onerror = () => { clearTimeout(watchdog); schedule(1000); };
+  schedule(Math.random() * 400);
+}
+
+/* ------------------------------------------------ alerts */
+function renderAlerts() {
+  state.alerts = state.alerts.slice(0, 60);
+  $("#alert-n").textContent = state.alerts.length;
+  $("#s-alert").textContent = state.alerts.length;
+  if (!state.alerts.length) return;
+  $("#alerts").innerHTML = state.alerts.map(a => {
+    const done = a.state === "adjudicated" || a.state === "closed";
+    const t = new Date((a.ts || 0) * 1000).toLocaleTimeString();
+    return `<div class="alert ${a.severity} ${done ? "done" : ""}">
+      <div class="sv"></div>
+      <div style="flex:1;min-width:0">
+        <div class="m">${esc(a.message || "")}</div>
+        <div class="s">${t} · ${esc(a.camera_name || a.camera_id)} ·
+          ${esc(a.rule_type || "")} · track ${a.track_id}
+          ${a.band ? ` · <b>${BAND_LABEL[a.band] || a.band}</b>` : ""}
+          ${a.decision_score != null ? ` ${(a.decision_score).toFixed(2)}` : ""}
+          ${a.occurrences > 1 ? ` · <b>×${a.occurrences}</b>` : ""}
+          ${a.speed_kmh ? ` · ${a.speed_kmh} km/h` : ""}</div>
+        <div class="acts">
+          ${done ? `<span class="mono muted">${esc(a.adjudication || a.state)}</span>` : `
+          <button onclick="ack('${a.alert_uid}')">Ack</button>
+          <button onclick="adj('${a.alert_uid}','true')">Confirm</button>
+          <button onclick="adj('${a.alert_uid}','false')">False</button>`}
+          <a class="mono muted" style="align-self:center;font-size:11px"
+             href="/api/northbound/profile-m/${a.alert_uid}.xml" target="_blank">Profile M</a>
+        </div>
+      </div>
+      ${a.thumbnail ? `<img src="/api/alerts/${a.alert_uid}/thumbnail.jpg" alt="">` : ""}
+    </div>`;
+  }).join("");
+}
+
+async function refreshAlerts() {
+  const q = state.onlyHuman ? "&needs_human=1" : "";
+  const r = await api(`/api/alerts?limit=60${q}`);
+  state.alerts = r.alerts || [];
+  renderAlerts();
+}
+
+const BAND_LABEL = { auto_alarm: "ALARM", review: "review", auto_log: "logged" };
+async function ack(uid) { await api(`/api/alerts/${uid}/ack`, { method: "POST" }); refreshAlerts(); }
+async function adj(uid, v) {
+  await api(`/api/alerts/${uid}/adjudicate`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ verdict: v, actor: "operator" })
+  });
+  refreshAlerts();
+}
+
+/* ------------------------------------------------ link + metrics */
+const PRESET_LABEL = {
+  fibre: "Fibre", p2p_5ghz: "P2P 5GHz", wifi: "Wi-Fi",
+  lte: "4G", vsat: "VSAT", down: "Outage"
+};
+async function loadLink() {
+  const r = await api("/api/link");
+  if (r.scan_spec) state.scanSpec = r.scan_spec;
+  if (r.mode) {
+    state.simMode = r.mode;
+    const el = $("#sim-mode");
+    if (el) el.textContent = `simulator: ${r.mode} mode · ${r.scan_spec}`;
+  }
+  $("#linkbar").innerHTML = (r.presets || []).map(p =>
+    `<button data-p="${p}" class="${p === state.link ? "sel" : ""}">${PRESET_LABEL[p] || p}</button>`
+  ).join("");
+  $("#linkbar").querySelectorAll("button").forEach(b => b.onclick = async () => {
+    state.link = b.dataset.p;
+    await api("/api/link", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preset: state.link })
+    });
+    loadLink();
+  });
+}
+
+async function loadMetrics() {
+  const m = await api("/api/metrics");
+  const a = m.alerts || {}, s = m.store || {};
+  $("#s-sup").textContent = m.cascade_suppressed || 0;
+  $("#metrics").innerHTML = [
+    ["rule events", m.rule_events || 0],
+    ["cascade suppressed", m.cascade_suppressed || 0],
+    ["deduplicated", a.deduped || 0],
+    ["alerts raised", a.raised || 0],
+    ["storms muted", a.storms || 0],
+    ["confirmed / false", `${a.adjudicated_true || 0} / ${a.adjudicated_false || 0}`],
+    ["stored alerts", s.alerts || 0],
+  ].map(([k, v]) => `<div class="kv"><span class="muted">${k}</span><b>${v}</b></div>`).join("");
+  const au = m.autonomy || {};
+  $("#s-load").textContent = au.operator_load_per_hour ?? 0;
+  $("#auto-n").textContent = `${Math.round((au.autonomy_ratio || 0) * 100)}% autonomous`;
+  const al = m.alarms || {};
+  $("#autonomy").innerHTML = [
+    ["events decided", au.total || 0],
+    ["auto-alarmed", au.auto_alarm || 0],
+    ["queued for a person", au.review || 0],
+    ["handled alone (logged)", au.auto_log || 0],
+    ["needing a person / hour", au.operator_load_per_hour ?? 0],
+    ["siren", al.siren_active ? "SOUNDING" : "quiet"],
+    ["unacknowledged", al.unacknowledged || 0],
+    ["escalations", al.escalations || 0],
+  ].map(([k, v]) => `<div class="kv"><span class="muted">${k}</span><b>${v}</b></div>`).join("")
+   + `<button style="margin-top:9px;width:100%;font-size:11px"
+        onclick="testAlarm()">Test alarm output</button>`;
+
+  const nb = m.northbound || [];
+  if (nb.length) $("#northbound").innerHTML = nb.map(e =>
+    `<div class="kv"><span class="muted">${esc(e.name)}</span>
+       <b>${e.sent} sent${e.failed ? ` · ${e.failed} failed` : ""}</b></div>`).join("");
+}
+
+async function loadCameras() {
+  const r = await api("/api/cameras");
+  state.cameras = r.cameras || [];
+  $("#s-cam").textContent = state.cameras.length;
+  renderGrid();
+}
+
+/* ------------------------------------------------ actions */
+async function testAlarm() {
+  await api("/api/alarm/test", { method: "POST" });
+  loadMetrics();
+}
+
+$("#btn-filter").onclick = () => {
+  state.onlyHuman = !state.onlyHuman;
+  $("#btn-filter").textContent = state.onlyHuman ? "needs a person" : "everything";
+  $("#btn-filter").classList.toggle("primary", state.onlyHuman);
+  refreshAlerts();
+};
+$("#btn-filter").classList.add("primary");
+
+$("#btn-scan").onclick = async () => {
+  const b = $("#btn-scan"); b.disabled = true; b.textContent = "Scanning…";
+  try {
+    const r = await api("/api/discover", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hosts: state.scanSpec, max_channels: 8 })
+    });
+    renderDevices(r.report.devices || [], r.report);
+    await loadCameras();
+  } finally { b.disabled = false; b.textContent = "Scan network"; }
+};
+
+$("#btn-start").onclick = async () => {
+  const b = $("#btn-start"); b.disabled = true; b.textContent = "Connecting…";
+  try {
+    await api("/api/cameras/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quality: "sub" })
+    });
+    await loadCameras();
+  } finally { b.disabled = false; b.textContent = "Connect all"; }
+};
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g,
+    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+connect(); loadLink(); loadCameras(); refreshAlerts(); loadMetrics();
+api("/api/discovery").then(d => renderDevices(d.devices || [], d));
+setInterval(() => { loadCameras(); loadMetrics(); }, 3000);
+</script>
+</body>
+</html>

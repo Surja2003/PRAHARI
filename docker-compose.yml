@@ -1,0 +1,155 @@
+# Prahari — single border-outpost deployment.
+#
+# Compose is the right unit for one BOP appliance. A sector HQ aggregating
+# many outposts moves to K3s; nothing below changes except the scheduler.
+#
+#   docker compose up -d
+#   docker compose --profile demo up -d      # also starts the simulated DVRs
+#
+# Note the deployment posture: everything is on-premise and nothing egresses.
+# "No raw video leaves the installation" is an MHA requirement, not a
+# preference, so there is no cloud service in this file by design.
+
+x-common: &common
+  restart: unless-stopped
+  networks: [prahari]
+  environment:
+    TZ: Asia/Kolkata
+
+services:
+
+  # ---------------------------------------------------------------- core
+  prahari:
+    <<: *common
+    build: .
+    image: prahari:0.1
+    command: >
+      uvicorn prahari.server.app:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      TZ: Asia/Kolkata
+      PRAHARI_DETECTOR: ${PRAHARI_DETECTOR:-motion}
+      PRAHARI_DB: /data/prahari.db
+      PRAHARI_EVIDENCE: /data/evidence
+      PRAHARI_FARM: http://dvr-farm:9099
+    volumes:
+      - prahari-data:/data
+      - ./config:/app/config:ro
+    # Uncomment for the RTX 4050 / Jetson deployment. Hardware NVDEC decode
+    # is not optional at scale: CPU decode of eight streams saturates the
+    # box before the model has run at all.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu, video]
+
+  # ------------------------------------------------------- stream gateway
+  # Re-publishes RTSP as WebRTC (WHEP) for the dashboard. HLS would add
+  # 6-10 s of latency and make a live view look like a recording.
+  mediamtx:
+    <<: *common
+    image: bluenviron/mediamtx:latest
+    ports:
+      - "8554:8554"     # RTSP
+      - "8889:8889"     # WebRTC / WHEP
+      - "9997:9997"     # API
+    environment:
+      TZ: Asia/Kolkata
+      MTX_PROTOCOLS: tcp
+      MTX_WEBRTCADDITIONALHOSTS: 127.0.0.1
+
+  # ------------------------------------------------------------ event bus
+  # Disk-backed and replayed on reconnect: this IS the store-and-forward
+  # mechanism for a dropped backhaul, not just a message broker.
+  nats:
+    <<: *common
+    image: nats:2-alpine
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - nats-data:/data
+    ports:
+      - "4222:4222"
+
+  # MQTT is needed anyway for the ONVIF Profile M JSON binding northbound.
+  mosquitto:
+    <<: *common
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  # -------------------------------------------------------------- storage
+  # S3 API without a cloud. Satisfies on-premise evidence retention.
+  minio:
+    <<: *common
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      TZ: Asia/Kolkata
+      MINIO_ROOT_USER: ${MINIO_USER:-prahari}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-changeme-before-deployment}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  # Alerts are a time series. TimescaleDB hypertables make "alerts per BOP
+  # per hour over the last 30 days" a single fast query.
+  postgres:
+    <<: *common
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      TZ: Asia/Kolkata
+      POSTGRES_DB: prahari
+      POSTGRES_USER: ${PG_USER:-prahari}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-changeme-before-deployment}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+  # Holds ReID, face and CLIP tracklet embeddings -- one index serving
+  # cross-camera handoff, watchlist match and natural-language clip search.
+  qdrant:
+    <<: *common
+    image: qdrant/qdrant:latest
+    volumes:
+      - qdrant-data:/qdrant/storage
+    ports:
+      - "6333:6333"
+
+  # ---------------------------------------------------------- demo only
+  dvr-farm:
+    <<: *common
+    build: .
+    image: prahari:0.1
+    command: python3 -m prahari.sim.farm
+    profiles: [demo]
+    volumes:
+      - ./media:/app/media
+    ports:
+      - "9099:9099"
+
+  mock-c2:
+    <<: *common
+    build: .
+    image: prahari:0.1
+    command: python3 -m prahari.tools.mock_c2 --host 0.0.0.0 --port 9200
+    profiles: [demo]
+    ports:
+      - "9200:9200"
+
+networks:
+  prahari:
+    driver: bridge
+
+volumes:
+  prahari-data:
+  nats-data:
+  minio-data:
+  pg-data:
+  qdrant-data:
