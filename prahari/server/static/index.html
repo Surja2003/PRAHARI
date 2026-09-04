@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
 <title>Prahari — Border Surveillance Command</title>
 <style>
 /* No webfonts on purpose: a border outpost has no internet. */
@@ -214,11 +215,17 @@ header h1 small{font-weight:400;font-size:11px;color:var(--deep);
 const $ = s => document.querySelector(s);
 const api = (p, o) => fetch(p, o).then(r => r.json());
 const state = { cameras: [], alerts: [], link: "fibre",
-                scanSpec: "127.0.0.0/24", simMode: "", onlyHuman: true };
+                scanSpec: "127.0.0.0/24", simMode: "", onlyHuman: true,
+                realtime: true };
 
 /* ------------------------------------------------ websocket */
 function connect() {
-  const ws = new WebSocket(`ws://${location.host}/ws`);
+  if (!state.realtime) {
+    $("#conn-t").textContent = "polling";
+    return;
+  }
+  const scheme = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${scheme}://${location.host}/ws`);
   ws.onopen = () => { $("#conn").classList.add("up"); $("#conn-t").textContent = "live"; };
   ws.onclose = () => {
     $("#conn").classList.remove("up"); $("#conn-t").textContent = "reconnecting";
@@ -520,8 +527,15 @@ function esc(s) {
     c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-connect(); loadLink(); loadCameras(); refreshAlerts(); loadMetrics();
-api("/api/discovery").then(d => renderDevices(d.devices || [], d));
+async function init() {
+  try {
+    const health = await api("/api/health");
+    state.realtime = health.websocket !== false;
+  } catch (_) {}
+  connect(); loadLink(); loadCameras(); refreshAlerts(); loadMetrics();
+  api("/api/discovery").then(d => renderDevices(d.devices || [], d));
+}
+init();
 setInterval(() => { loadCameras(); loadMetrics(); }, 3000);
 </script>
 </body>

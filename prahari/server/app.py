@@ -834,7 +834,7 @@ async def labels():
 @app.get("/api/health")
 async def health():
     return {"ok": True, "workers": len(workers), "detector": DETECTOR,
-            "time": time.time()}
+            "time": time.time(), "websocket": not bool(os.environ.get("VERCEL"))}
 
 
 @app.websocket("/ws")
