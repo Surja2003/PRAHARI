@@ -531,7 +531,9 @@ async function init() {
   try {
     const health = await api("/api/health");
     state.realtime = health.websocket !== false;
-    if (health.runtime === "serverless") {
+    const deployedOnVercel = health.runtime === "serverless"
+      || (health.websocket === false && location.protocol === "https:");
+    if (deployedOnVercel) {
       $("#btn-scan").disabled = true;
       $("#btn-scan").textContent = "Edge node required";
       $("#btn-start").disabled = true;
