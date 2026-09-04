@@ -266,6 +266,15 @@ async def _shutdown():
 @app.post("/api/discover")
 async def discover(req: ScanRequest):
     global _last_discovery
+    if os.environ.get("VERCEL"):
+        report = {
+            "devices": [], "hosts_scanned": 0, "cameras": 0,
+            "elapsed_ms": 0, "runtime": "serverless",
+            "message": "Camera discovery must run on a Prahari edge node "
+                       "with access to the DVR network.",
+        }
+        _last_discovery = report
+        return {"report": report, "registered": 0, "elapsed_s": 0}
     t0 = time.time()
     report = await Discoverer().scan(req.hosts, req.max_channels)
     _last_discovery = report.as_dict()
@@ -834,7 +843,8 @@ async def labels():
 @app.get("/api/health")
 async def health():
     return {"ok": True, "workers": len(workers), "detector": DETECTOR,
-            "time": time.time(), "websocket": not bool(os.environ.get("VERCEL"))}
+            "time": time.time(), "websocket": not bool(os.environ.get("VERCEL")),
+            "runtime": "serverless" if os.environ.get("VERCEL") else "edge"}
 
 
 @app.websocket("/ws")

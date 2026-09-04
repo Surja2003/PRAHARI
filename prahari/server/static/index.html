@@ -531,6 +531,20 @@ async function init() {
   try {
     const health = await api("/api/health");
     state.realtime = health.websocket !== false;
+    if (health.runtime === "serverless") {
+      $("#btn-scan").disabled = true;
+      $("#btn-scan").textContent = "Edge node required";
+      $("#btn-start").disabled = true;
+      $("#btn-start").textContent = "Edge node required";
+      $("#devices").innerHTML = `<div class="empty">
+        <b>Cloud dashboard connected.</b><br><br>
+        Camera discovery and live video run on a Prahari edge node, where
+        the DVR network is reachable. Deploy the edge service with
+        <span class="mono">python -m prahari.run demo</span>, then use this
+        dashboard from that node.<br><br>
+        This serverless view is ready for alerts and metrics forwarded by
+        the edge service.</div>`;
+    }
   } catch (_) {}
   connect(); loadLink(); loadCameras(); refreshAlerts(); loadMetrics();
   api("/api/discovery").then(d => renderDevices(d.devices || [], d));
